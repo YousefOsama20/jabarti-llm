@@ -6,6 +6,8 @@ import pandas as pd
 from huggingface_hub import hf_hub_download, snapshot_download
 from cleaning import clean_dataframe, normalize_text, prepare_document
 
+
+
 REPO = "bakrianoo/jabarti-llm-dataset"
 MAX_CHUNKS = 20
 
@@ -26,6 +28,19 @@ EVAL_SPLITS = {"phase1_eval", "phase2_eval"}
 OUT_DIR = Path(__file__).parent / "output"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
+def demo_normalizer():
+    print("TYPE B NORMALIZER (embeddable, runs at inference too)")
+
+    samples = [
+        "جُمْهُورِيَّةُ مِصْرَ الْعَرَبِيَّة",      # heavy diacritics
+        "أحمد إبراهيم آدم علىّ",                   # alef + ya variants
+        "The   United    States",                 # extra spaces
+    ]
+
+    for s in samples:
+        print(f"  raw       : {s}")
+        print(f"  normalized: {normalize_text(s)}")
+        print("="*30)
 
 def download_and_filter():
     """Download raw HF splits, apply hard cap to train splits, write *_filtered.parquet."""
@@ -78,6 +93,9 @@ def clean_phase(phase, input_path, output_path):
     cleaned_df.to_parquet(output_path, index=False)
 
 def main():
+
+    demo_normalizer()
+
     download_and_filter()
 
     for name in TRAIN_SPLITS:
