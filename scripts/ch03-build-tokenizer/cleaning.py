@@ -2,7 +2,42 @@ import re
 from tokenizers import Regex
 from tokenizers.normalizers import NFC, Replace, Sequence
 
-"""REGICS"""
+
+# ============================================================
+# TYPE B — lightweight, embeddable normalization
+# ============================================================
+# We build the normalization as tokenizer components so the *exact same*
+# transformation can be (a) embedded in the tokenizer and (b) reused as a
+# plain Python function. There is only one definition, so they cannot drift.
+#
+# Arabic normalization decisions (each is a real trade-off):
+#   • remove tashkeel (diacritics) + tatweel  → collapses spelling variants
+#   • unify alef  أ إ آ → ا                    → fewer variants, small quality cost
+#   • alef maqsura ى → ي                       → common, consistent
+#   • we deliberately KEEP ta-marbuta (ة)      → dropping it would stop the model
+#                                                from ever generating ة (bad output)
+
+def build_normalizer():
+
+    return Sequence([
+        NFC(),
+        Replace(Regex( r"[\u064B-\u0652\u0640]"), "" ),
+        Replace("أ", "ا"),
+        Replace("إ", "ا"),
+        Replace("آ", "ا"),
+        Replace("ى", "ي"),   
+        Replace(Regex(r"[ \t]+"), " "),  # collapse spaces/tabs (keep newlines)
+    ])
+
+_NORMALIZER = build_normalizer()
+
+def normalize_text(text):
+    """
+    Lightweight normalization for a single string.
+    """
+
+    return _NORMALIZER.normalize_str(text)
+
 # ============================================================
 # TYPE A — heavy, one-time corpus preparation
 # ============================================================
@@ -40,9 +75,6 @@ _CATEGORY_LINE_RE = re.compile(r"(?m)^[ \t]*(?:تصنيف|بوابة|Category|Po
 
 # A section body with fewer than this many words is considered empty/sparse.
 MIN_SECTION_WORDS = 8
-
-def normalize_text(test):
-    return test
 
 def _norm_title(title):
     """Normalize a heading for blocklist comparison (AR + EN aware)."""
@@ -134,3 +166,4 @@ def clean_dataframe(df, text_col="text", min_chars=40):
     new_df = new_df[ new_df[text_col].str.len() >= min_chars ].reset_index(drop=True)
 
     return new_df
+
