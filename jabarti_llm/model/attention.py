@@ -38,7 +38,7 @@ class MultiHeadAttention(nn.Module):
 
         self.register_buffer("mask", mask, persistent=False)
 
-    def forward(self, x):
+    def forward(self, x, kv_cache, use_cache=False):
 
         batch_size, seq_len, d_model = x.shape
 
@@ -46,10 +46,23 @@ class MultiHeadAttention(nn.Module):
         k = self.W_k(x).view(batch_size, seq_len, self.n_heads, self.d_k).transpose(1, 2)
         v = self.W_v(x).view(batch_size, seq_len, self.n_heads, self.d_k).transpose(1, 2)
 
+        past_len = 0
+
+        if kv_cache is not None:
+            past_k, past_v = kv_cache
+            past_len = past_k.size(2)
+
+            k = torch.cat([past_k, k], dim=2)
+            v = torch.cat([past_v, v], dim=2)
+
+        updated_cache = (k, v) if use_cache else None
+        total_len = past_len + seq_len
+        
         scores = q @ k.transpose(-2, -1)
         scores = scores / self.d_k**0.5
 
-        scores = scores.masked_fill(~self.mask, float("-inf"))
+        causal = self.mask[past_len:total_len, :total_len]  
+        scores = scores.masked_fill(~causal, float("-inf"))
 
         weights = F.softmax(scores, dim=-1)
         out = weights @ v
